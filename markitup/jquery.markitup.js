@@ -45,7 +45,6 @@
 					previewParser:			false,
 					previewParserPath:		'',
 					previewParserVar:		'data',
-					previewParserAjaxType:	'POST',
 					resizeHandle:			true,
 					beforeInsert:			'',
 					afterInsert:			'',
@@ -200,7 +199,6 @@
 			// recursively build header with dropMenus from markupset
 			function dropMenus(markupSet) {
 				var ul = $('<ul></ul>'), i = 0;
-				$('li:hover > ul', ul).css('display', 'block');
 				$.each(markupSet, function() {
 					var button = this, t = '', title, li, j;
 					button.title ? title = (button.key) ? (button.title||'')+' [Ctrl+'+button.key+']' : (button.title||'') : title = (button.key) ? (button.name||'')+' [Ctrl+'+button.key+']' : (button.name||'');
@@ -216,28 +214,50 @@
 						.bind("contextmenu.markItUp", function() { // prevent contextmenu on mac and allow ctrl+click
 							return false;
 						}).bind('click.markItUp', function(e) {
-							e.preventDefault();
+							if (e.which == 1) {
+								e.preventDefault();
+							}
 						}).bind("focusin.markItUp", function(){
                             $$.focus();
 						}).bind('mouseup', function(e) {
-							if (button.call) {
-								eval(button.call)(e); // Pass the mouseup event to custom delegate
+							if (e.which == 1) {
+								if (button.call) {
+									eval(button.call)(e); // Pass the mouseup event to custom delegate
+								}
+								if (button.dropMenu) {
+									var $button = $(this);
+									setTimeout(function() { 
+										if (!$button.hasClass('is_active')) {
+											$button.addClass('is_active') 
+										} else {
+											$button.removeClass('is_active') 
+										}
+									}, 1);
+								} else {
+									setTimeout(function() { markup(button) },1);
+								}
+								return false;
 							}
-							setTimeout(function() { markup(button) },1);
-							return false;
 						}).bind('mouseenter.markItUp', function() {
-								$('> ul', this).show();
-								$(document).one('click', function() { // close dropmenu if click outside
-										$('ul ul', header).hide();
-									}
-								);
+							if (button.openWith ||
+								button.openBlockWith ||
+								button.replaceWith) {
+								$(this).addClass('is_active');
+							}
 						}).bind('mouseleave.markItUp', function() {
-								$('> ul', this).hide();
+							if (button.openWith ||
+								button.openBlockWith ||
+								button.replaceWith) {
+								$(this).removeClass('is_active');
+							}
 						}).appendTo(ul);
 						if (button.dropMenu) {
 							levels.push(i);
 							$(li).addClass('markItUpDropMenu').append(dropMenus(button.dropMenu));
 						}
+						$(document).on('click', ':not(".markItUpHeader li.is_active")', function() { // close dropmenu if click outside
+							$('.markItUpHeader li.is_active').removeClass('is_active');
+						});
 					}
 				}); 
 				levels.pop();
@@ -538,19 +558,18 @@
 
 			function renderPreview() {
 				var phtml;
-				var parsedData = $$.val();
-				if (options.previewParser && typeof options.previewParser === 'function') {
-					parsedData = options.previewParser(parsedData); 
-				}
 				if (options.previewHandler && typeof options.previewHandler === 'function') {
-					options.previewHandler(parsedData);
+					options.previewHandler( $$.val() );
+				} else if (options.previewParser && typeof options.previewParser === 'function') {
+					var data = options.previewParser( $$.val() );
+					writeInPreview(localize(data, 1) ); 
 				} else if (options.previewParserPath !== '') {
 					$.ajax({
-						type: options.previewParserAjaxType,
+						type: 'POST',
 						dataType: 'text',
 						global: false,
 						url: options.previewParserPath,
-						data: options.previewParserVar+'='+encodeURIComponent(parsedData),
+						data: options.previewParserVar+'='+encodeURIComponent($$.val()),
 						success: function(data) {
 							writeInPreview( localize(data, 1) ); 
 						}
@@ -562,7 +581,7 @@
 							dataType: 'text',
 							global: false,
 							success: function(data) {
-								writeInPreview( localize(data, 1).replace(/<!-- content -->/g, parsedData) );
+								writeInPreview( localize(data, 1).replace(/<!-- content -->/g, $$.val()) );
 							}
 						});
 					}
@@ -638,12 +657,6 @@
 			function remove() {
 				$$.unbind(".markItUp").removeClass('markItUpEditor');
 				$$.parent('div').parent('div.markItUp').parent('div').replaceWith($$);
-
-				var relativeRef = $$.parent('div').parent('div.markItUp').parent('div');
-				if (relativeRef.length) {
-				    relativeRef.replaceWith($$);
-				}
-				
 				$$.data('markItUp', null);
 			}
 
