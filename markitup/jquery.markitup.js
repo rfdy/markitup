@@ -221,7 +221,7 @@
 						}).bind("focusin.markItUp", function(){
                             $$.focus();
 						}).bind('mouseup', function(e) {
-							if (e.which == 1) {
+							if (e.which == 1 || !e.which) {
 								if (button.call) {
 									eval(button.call)(e); // Pass the mouseup event to custom delegate
 								}
